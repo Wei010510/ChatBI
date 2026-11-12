@@ -1,0 +1,110 @@
+# bootstrap 自动起草，未人工审核，不得直接作为正式增强包使用。
+# 人工确认后，手动整理进正式 YAML（version 变化会让 S2 缓存自然失效）。
+generated_at: '2026-11-10T13:41:32+00:00'
+source: schema
+reviewed: false
+version: ex-draft
+note: 草稿示例的 sql 为空，需人工补全并实跑验证；reviewed=false。
+exemplars:
+- id: draft_ex_dwd_exposure_daily_summary
+  question: dwd_exposure_daily 在指定时间范围内的 exposure_count 汇总是多少
+  sql: ''
+  query_spec:
+    metrics:
+    - exposure_count
+    dimensions: []
+    time_range:
+      start: ''
+      end: ''
+    comparison: null
+  tags:
+  - dwd_exposure_daily
+  - exposure_count
+  difficulty: easy
+  source: bootstrap
+  verified: false
+- id: draft_ex_dwd_ad_daily_summary
+  question: dwd_ad_daily 在指定时间范围内的 ad_spend 汇总是多少
+  sql: ''
+  query_spec:
+    metrics:
+    - ad_spend
+    dimensions: []
+    time_range:
+      start: ''
+      end: ''
+    comparison: null
+  tags:
+  - dwd_ad_daily
+  - ad_spend
+  difficulty: easy
+  source: bootstrap
+  verified: false
+- id: draft_ex_dwd_order_summary
+  question: dwd_order 在指定时间范围内的 total_amount 汇总是多少
+  sql: ''
+  query_spec:
+    metrics:
+    - total_amount
+    dimensions: []
+    time_range:
+      start: ''
+      end: ''
+    comparison: null
+  tags:
+  - dwd_order
+  - total_amount
+  difficulty: easy
+  source: bootstrap
+  verified: false
+- id: draft_ex_dwd_payment_summary
+  question: dwd_payment 在指定时间范围内的 pay_amount 汇总是多少
+  sql: ''
+  query_spec:
+    metrics:
+    - pay_amount
+    dimensions: []
+    time_range:
+      start: ''
+      end: ''
+    comparison: null
+  tags:
+  - dwd_payment
+  - pay_amount
+  difficulty: easy
+  source: bootstrap
+  verified: false
+- id: draft_ex_dwd_refund_summary
+  question: dwd_refund 在指定时间范围内的 refund_amount 汇总是多少
+  sql: ''
+  query_spec:
+    metrics:
+    - refund_amount
+    dimensions: []
+    time_range:
+      start: ''
+      end: ''
+    comparison: null
+  tags:
+  - dwd_refund
+  - refund_amount
+  difficulty: easy
+  source: bootstrap
+  verified: false
+- id: draft_ex_dwd_order_cost_summary
+  question: dwd_order_cost 在指定时间范围内的 product_cost 汇总是多少
+  sql: ''
+  query_spec:
+    metrics:
+    - product_cost
+    dimensions: []
+    time_range:
+      start: ''
+      end: ''
+    comparison: null
+  tags:
+  - dwd_order_cost
+  - product_cost
+  difficulty: easy
+  source: bootstrap
+  verified: false

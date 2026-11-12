@@ -1,0 +1,23 @@
+# 环境变量与密钥
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# 依赖与构建产物
+node_modules/
+dist/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# 日志与系统文件
+*.log
+.DS_Store
+Thumbs.db
+
+# 本地接口调试产物
+backend/ask*.json
+backend/clarify*.json

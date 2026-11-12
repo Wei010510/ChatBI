@@ -1,0 +1,174 @@
+# 口径词典（增强包，SDD §5.3）
+# 单一来源：docs/metrics-dict.md 由本文件生成，勿手改 md 再回改 yaml。
+# 缺失 / 为空 / 解析失败时，S4 标 degraded=true，链路照常走（NFR-5）。
+# 所有口径均在 data schema 实跑校验，校验期 2025-06-01 ~ 2026-06-25。
+
+version: "l1-2026.11"
+updated_at: "2026-11-10"
+owner: "运营"
+
+metrics:
+  - key: gmv
+    name: GMV
+    aliases: [成交额, 销售额, 销售额GMV, 交易额]
+    definition: 支付成功金额，不含取消与退款；按支付日期归期
+    formula: "SUM(dwd_payment.pay_amount)"
+    tables: [dwd_payment]
+    filters: ["pay_status = 'success'"]
+    grain: pay_date
+    derived: false
+    ambiguity: []
+    verified: true
+    verified_sql: "SELECT ROUND(SUM(pay_amount)::numeric, 2) AS gmv FROM data.dwd_payment WHERE pay_status = 'success' AND pay_date BETWEEN :start AND :end"
+
+  - key: paid_orders
+    name: 支付订单数
+    aliases: [订单数, 单量, 支付单量, 成交订单数]
+    definition: 支付成功的订单数，同一订单多次支付只计一次；按支付日期归期
+    formula: "COUNT(DISTINCT dwd_payment.order_id)"
+    tables: [dwd_payment]
+    filters: ["pay_status = 'success'"]
+    grain: pay_date
+    derived: false
+    ambiguity: []
+    verified: true
+    verified_sql: "SELECT COUNT(DISTINCT order_id) AS paid_orders FROM data.dwd_payment WHERE pay_status = 'success' AND pay_date BETWEEN :start AND :end"
+
+  - key: aov
+    name: 客单价
+    aliases: [AOV, 平均订单金额, 平均客单价]
+    definition: GMV ÷ 支付订单数
+    formula: "gmv / paid_orders"
+    tables: [dwd_payment]
+    filters: ["pay_status = 'success'"]
+    grain: pay_date
+    derived: true
+    ambiguity: []
+    verified: true
+    verified_sql: "SELECT ROUND((SUM(pay_amount) / COUNT(DISTINCT order_id))::numeric, 2) AS aov FROM data.dwd_payment WHERE pay_status = 'success' AND pay_date BETWEEN :start AND :end"
+
+  - key: conversion_rate
+    name: 转化率
+    aliases: [成交转化率, 转化]
+    definition: 默认口径为支付转化率：支付订单数 ÷ 访客数（UV）；下单转化率另登记在 ambiguity
+    formula: "paid_orders / SUM(dwd_exposure_daily.uv)"
+    tables: [dwd_payment, dwd_exposure_daily]
+    filters: ["dwd_payment.pay_status = 'success'", "dwd_payment.pay_date 与 dwd_exposure_daily.stat_date 同期对齐"]
+    grain: day
+    derived: true
+    ambiguity:
+      - {key: pay_conversion, name: 支付转化, formula: "paid_orders / SUM(dwd_exposure_daily.uv)", is_default: true}
+      - {key: order_conversion, name: 下单转化, formula: "COUNT(DISTINCT dwd_order.order_id) / SUM(dwd_exposure_daily.exposure_count)", is_default: false}
+    verified: true
+    verified_sql: "WITH p AS (SELECT COUNT(DISTINCT order_id) AS paid FROM data.dwd_payment WHERE pay_status = 'success' AND pay_date BETWEEN :start AND :end), e AS (SELECT SUM(uv) AS uv, SUM(exposure_count) AS exposure FROM data.dwd_exposure_daily WHERE stat_date BETWEEN :start AND :end), o AS (SELECT COUNT(DISTINCT order_id) AS orders FROM data.dwd_order WHERE order_date BETWEEN :start AND :end) SELECT ROUND(100.0 * p.paid / e.uv, 2) AS pay_conv_pct, ROUND(100.0 * o.orders / e.exposure, 2) AS order_conv_pct FROM p, e, o"
+
+  - key: return_rate
+    name: 退货率
+    aliases: [退货比例, 退货率]
+    definition: 退货单数 ÷ 支付订单数，按退款发生日期归期；库中 doc_type='refund' 即退货单（见 backend/seed/gen_data.py 第 351 行与 schema.sql 注释）
+    formula: "COUNT(DISTINCT dwd_refund.refund_id) / paid_orders"
+    tables: [dwd_refund, dwd_payment]
+    filters: ["dwd_refund.doc_type = 'refund'", "dwd_refund.refund_date 与 dwd_payment.pay_date 同期对齐"]
+    grain: day
+    derived: true
+    ambiguity:
+      - {key: by_count, name: 按单数, formula: "COUNT(DISTINCT dwd_refund.refund_id) / paid_orders", is_default: true}
+      - {key: by_amount, name: 按金额, formula: "SUM(dwd_refund.refund_amount) / gmv", is_default: false}
+    verified: true
+    verified_sql: "WITH o AS (SELECT COUNT(DISTINCT order_id) AS paid FROM data.dwd_payment WHERE pay_status = 'success' AND pay_date BETWEEN :start AND :end), r AS (SELECT COUNT(DISTINCT refund_id) AS refunds FROM data.dwd_refund WHERE doc_type = 'refund' AND refund_date BETWEEN :start AND :end) SELECT ROUND(100.0 * r.refunds / o.paid, 2) AS return_rate_pct FROM o, r"
+
+  - key: refund_rate
+    name: 退款率
+    aliases: [仅退款率, 退款比例]
+    definition: 仅退款单据数（不退货）÷ 支付订单数，按退款发生日期归期；库中 doc_type='return' 即仅退款单（147 单）
+    formula: "COUNT(DISTINCT dwd_refund.refund_id) / paid_orders"
+    tables: [dwd_refund, dwd_payment]
+    filters: ["dwd_refund.doc_type = 'return'", "dwd_refund.refund_date 与 dwd_payment.pay_date 同期对齐"]
+    grain: day
+    derived: true
+    ambiguity: []
+    verified: true
+    verified_sql: "WITH o AS (SELECT COUNT(DISTINCT order_id) AS paid FROM data.dwd_payment WHERE pay_status = 'success' AND pay_date BETWEEN :start AND :end), r AS (SELECT COUNT(DISTINCT refund_id) AS refunds FROM data.dwd_refund WHERE doc_type = 'return' AND refund_date BETWEEN :start AND :end) SELECT ROUND(100.0 * r.refunds / o.paid, 2) AS refund_rate_pct FROM o, r"
+
+  - key: refund_amount_ratio
+    name: 退款金额占比
+    aliases: [退款金额比例, 退款占比]
+    definition: 退款金额 ÷ GMV，按退款发生日期归期；包含退货单（refund）与仅退款单（return）两类单据
+    formula: "SUM(dwd_refund.refund_amount) / gmv"
+    tables: [dwd_refund, dwd_payment]
+    filters: ["dwd_refund.refund_date 与 dwd_payment.pay_date 同期对齐", "不按 doc_type 过滤，两类单据都计入"]
+    grain: day
+    derived: true
+    ambiguity: []
+    verified: true
+    verified_sql: "WITH p AS (SELECT SUM(pay_amount) AS gmv FROM data.dwd_payment WHERE pay_status = 'success' AND pay_date BETWEEN :start AND :end), r AS (SELECT SUM(refund_amount) AS amt FROM data.dwd_refund WHERE refund_date BETWEEN :start AND :end) SELECT ROUND(100.0 * r.amt / p.gmv, 2) AS refund_amount_pct, ROUND(r.amt::numeric, 2) AS refund_amt, ROUND(p.gmv::numeric, 2) AS gmv FROM p, r"
+
+  - key: new_customer_gmv_ratio
+    name: 新客GMV占比
+    aliases: [新客占比, 新客GMV比例, 新老客占比]
+    definition: 首次支付日期（dim_customer.first_pay_date）落在统计期内的客户贡献 GMV ÷ 总 GMV
+    formula: "SUM(dwd_payment.pay_amount WHERE dim_customer.first_pay_date BETWEEN :start AND :end) / gmv"
+    tables: [dwd_payment, dim_customer]
+    filters: ["dwd_payment.pay_status = 'success'", "dim_customer.first_pay_date BETWEEN :start AND :end"]
+    grain: day
+    derived: true
+    ambiguity: []
+    verified: true
+    verified_sql: "WITH p AS (SELECT p.pay_amount, c.first_pay_date FROM data.dwd_payment p JOIN data.dim_customer c ON c.customer_id = p.customer_id WHERE p.pay_status = 'success' AND p.pay_date BETWEEN :start AND :end) SELECT ROUND(100.0 * SUM(pay_amount) FILTER (WHERE first_pay_date BETWEEN :start AND :end) / SUM(pay_amount), 2) AS new_customer_gmv_pct FROM p"
+
+dimensions:
+  - key: channel
+    name: 渠道
+    column: dwd_payment.channel_code
+    lookup_table: dim_channel
+    lookup_key: channel_code
+    lookup_label: channel_name
+    aliases: [渠道, 来源, 平台]
+  - key: category
+    name: 类目
+    column: dwd_order_detail.category_id
+    lookup_table: dim_category
+    lookup_key: category_id
+    lookup_label: category_name
+    aliases: [类目, 品类, 商品类目]
+  - key: date
+    name: 日期
+    column: dwd_payment.pay_date
+    lookup_table: null
+    lookup_key: null
+    lookup_label: null
+    aliases: [日期, 时间, 每天, 按天]
+  - key: is_new_customer
+    name: 新老客
+    column: dim_customer.first_pay_date
+    lookup_table: null
+    lookup_key: null
+    lookup_label: null
+    aliases: [新老客, 新客, 老客]
+
+calendar:
+  promotion:
+    table: dim_promotion
+    type_column: promotion_type
+    start_column: start_date
+    end_column: end_date
+    types: [大促, 预热]
+    sampled_periods:
+      - {name: "2025年618大促", type: "大促", start: "2025-06-16", end: "2025-06-18", sampled_at: "2026-11-10"}
+      - {name: "2026年618预热", type: "预热", start: "2026-06-01", end: "2026-06-15", sampled_at: "2026-11-10"}
+      - {name: "2026年618大促", type: "大促", start: "2026-06-16", end: "2026-06-18", sampled_at: "2026-11-10"}
+  relative:
+    - {key: last_week, rule: "本期结束日往前推 7 天，长度与本期一致"}
+    - {key: last_month, rule: "上月同期，按日对齐"}
+    - {key: wow, rule: "上一周期，长度与本期一致、首尾相接"}
+    - {key: yoy, rule: "去年同期，按日对齐"}
+
+unresolved:
+  - issue: "dim_promotion.promotion_type 实测无「日常」"
+    detail: "schema.sql 注释写「大促/预热/日常」，实测 DISTINCT 仅 大促、预热；日常期需按「不在任何档期内」推导，词典不硬编码日期"
+  - issue: "dwd_payment.pay_status 实测无 failed"
+    detail: "schema.sql 注释写「success/failed/refunded」，实测 DISTINCT 为 success(9281)、refunded(201)；GMV 口径只认 success"
+  - issue: "doc_type 语义与旧文档相反，已按库中数据纠正"
+    detail: "schema.sql 注释与 gen_data.py 第 351 行一致：refund=退货单（571 单，653559.71）、return=仅退款单（147 单，201991.54）；SDD §5.3 与旧版 metrics.yaml 写反，本版以数据为准"
+  - issue: "seed.verify 的退货率分母与本词典不一致"
+    detail: "backend/seed/seed.py 用 order_status IN ('created','paid','refunded') 作分母（9804 单），算出 5.82%；本词典用支付成功订单数（9281 单），算出 6.15%。本词典口径更严，seed.py 的 verify 仅作跑通校验，不改数据"

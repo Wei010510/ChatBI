@@ -1,0 +1,388 @@
+# 示例库（增强包，服务 S5 few-shot；SDD §4.6）
+# 只用于教 Coder 写法，不参与答案比对、不做结果校验、不写进缓存当答案。
+# 每条 SQL 均已在 data schema 只读实跑通过（校验期 2025-06-01 ~ 2026-06-25）。
+
+version: "ex-2026.11"
+updated_at: "2026-11-10"
+owner: "运营"
+
+exemplars:
+  # ---------- 同比 / 环比 / 两期对比 ----------
+  - id: ex_yoy_gmv_promo
+    question: 2026年618大促 GMV 同比去年是多少
+    sql: |
+      WITH cur AS (
+        SELECT SUM(pay_amount) AS v
+        FROM data.dwd_payment
+        WHERE pay_status = 'success'
+          AND pay_date BETWEEN '2026-06-16' AND '2026-06-18'
+      ), prev AS (
+        SELECT SUM(pay_amount) AS v
+        FROM data.dwd_payment
+        WHERE pay_status = 'success'
+          AND pay_date BETWEEN '2025-06-16' AND '2025-06-18'
+      )
+      SELECT '本期' AS period, cur.v AS v, prev.v AS prev_v,
+             ROUND(((cur.v - prev.v) / NULLIF(prev.v, 0))::numeric, 4) AS yoy
+      FROM cur, prev
+    query_spec:
+      metrics: [gmv]
+      dimensions: []
+      time_range: {start: "2026-06-16", end: "2026-06-18"}
+      comparison: {type: yoy}
+    tags: [同比, yoy, 大促, 时间窗, GMV]
+    difficulty: medium
+    source: manual
+    verified: true
+
+  - id: ex_mom_gmv_month
+    question: 2026年6月 GMV 环比5月是多少
+    sql: |
+      WITH cur AS (
+        SELECT SUM(pay_amount) AS v
+        FROM data.dwd_payment
+        WHERE pay_status = 'success'
+          AND pay_date BETWEEN '2026-06-01' AND '2026-06-30'
+      ), prev AS (
+        SELECT SUM(pay_amount) AS v
+        FROM data.dwd_payment
+        WHERE pay_status = 'success'
+          AND pay_date BETWEEN '2026-05-01' AND '2026-05-31'
+      )
+      SELECT '2026-06' AS period, cur.v AS v, prev.v AS prev_v,
+             ROUND(((cur.v - prev.v) / NULLIF(prev.v, 0))::numeric, 4) AS mom
+      FROM cur, prev
+    query_spec:
+      metrics: [gmv]
+      dimensions: []
+      time_range: {start: "2026-06-01", end: "2026-06-30"}
+      comparison: {type: mom}
+    tags: [环比, mom, 月度, GMV]
+    difficulty: medium
+    source: manual
+    verified: true
+
+  - id: ex_wow_gmv_week
+    question: 最近一周 GMV 环比上一周是多少
+    sql: |
+      WITH cur AS (
+        SELECT SUM(pay_amount) AS v
+        FROM data.dwd_payment
+        WHERE pay_status = 'success'
+          AND pay_date BETWEEN '2026-06-19' AND '2026-06-25'
+      ), prev AS (
+        SELECT SUM(pay_amount) AS v
+        FROM data.dwd_payment
+        WHERE pay_status = 'success'
+          AND pay_date BETWEEN '2026-06-12' AND '2026-06-18'
+      )
+      SELECT '本周' AS period, cur.v AS v, prev.v AS prev_v,
+             ROUND(((cur.v - prev.v) / NULLIF(prev.v, 0))::numeric, 4) AS wow
+      FROM cur, prev
+    query_spec:
+      metrics: [gmv]
+      dimensions: []
+      time_range: {start: "2026-06-19", end: "2026-06-25"}
+      comparison: {type: wow}
+    tags: [环比, wow, 周度, GMV]
+    difficulty: medium
+    source: manual
+    verified: true
+
+  # ---------- TopN / 分维度 ----------
+  - id: ex_topn_channel_gmv
+    question: 2026年6月 GMV 最高的3个渠道
+    sql: |
+      SELECT p.channel_code, c.channel_name, SUM(p.pay_amount) AS gmv
+      FROM data.dwd_payment p
+      JOIN data.dim_channel c ON c.channel_code = p.channel_code
+      WHERE p.pay_status = 'success'
+        AND p.pay_date BETWEEN '2026-06-01' AND '2026-06-30'
+      GROUP BY p.channel_code, c.channel_name
+      ORDER BY gmv DESC
+      LIMIT 3
+    query_spec:
+      metrics: [gmv]
+      dimensions: [channel]
+      time_range: {start: "2026-06-01", end: "2026-06-30"}
+      comparison: null
+    tags: [TopN, 排名, 渠道, GMV]
+    difficulty: easy
+    source: manual
+    verified: true
+
+  - id: ex_channel_gmv
+    question: 2026年6月各渠道 GMV 是多少
+    sql: |
+      SELECT c.channel_name, SUM(p.pay_amount) AS gmv
+      FROM data.dwd_payment p
+      JOIN data.dim_channel c ON c.channel_code = p.channel_code
+      WHERE p.pay_status = 'success'
+        AND p.pay_date BETWEEN '2026-06-01' AND '2026-06-30'
+      GROUP BY c.channel_name
+      ORDER BY gmv DESC
+    query_spec:
+      metrics: [gmv]
+      dimensions: [channel]
+      time_range: {start: "2026-06-01", end: "2026-06-30"}
+      comparison: null
+    tags: [分维度, 渠道, GMV]
+    difficulty: easy
+    source: manual
+    verified: true
+
+  # ---------- 除零保护 / 派生指标 ----------
+  - id: ex_nullif_channel_aov
+    question: 2026年6月各渠道客单价是多少
+    sql: |
+      SELECT p.channel_code,
+             ROUND((SUM(p.pay_amount) / NULLIF(COUNT(DISTINCT p.order_id), 0))::numeric, 2) AS aov
+      FROM data.dwd_payment p
+      WHERE p.pay_status = 'success'
+        AND p.pay_date BETWEEN '2026-06-01' AND '2026-06-30'
+      GROUP BY p.channel_code
+      ORDER BY aov DESC
+    query_spec:
+      metrics: [aov]
+      dimensions: [channel]
+      time_range: {start: "2026-06-01", end: "2026-06-30"}
+      comparison: null
+    tags: [客单价, AOV, 渠道, 除零, NULLIF]
+    difficulty: medium
+    source: manual
+    verified: true
+
+  - id: ex_aov_overall
+    question: 2026年6月整体客单价是多少
+    sql: |
+      SELECT ROUND((SUM(pay_amount) / NULLIF(COUNT(DISTINCT order_id), 0))::numeric, 2) AS aov
+      FROM data.dwd_payment
+      WHERE pay_status = 'success'
+        AND pay_date BETWEEN '2026-06-01' AND '2026-06-30'
+    query_spec:
+      metrics: [aov]
+      dimensions: []
+      time_range: {start: "2026-06-01", end: "2026-06-30"}
+      comparison: null
+    tags: [客单价, AOV, 派生, 除零, NULLIF]
+    difficulty: easy
+    source: manual
+    verified: true
+
+  # ---------- 日期边界 ----------
+  - id: ex_date_boundary_daily_gmv
+    question: 数据首日和末日的 GMV 分别是多少
+    sql: |
+      SELECT pay_date, SUM(pay_amount) AS gmv
+      FROM data.dwd_payment
+      WHERE pay_status = 'success'
+        AND pay_date IN ('2025-06-01', '2026-06-25')
+      GROUP BY pay_date
+      ORDER BY pay_date
+    query_spec:
+      metrics: [gmv]
+      dimensions: [date]
+      time_range: {start: "2025-06-01", end: "2026-06-25"}
+      comparison: null
+    tags: [日期边界, 首日, 末日, 日期, GMV]
+    difficulty: easy
+    source: manual
+    verified: true
+
+  - id: ex_daily_gmv_trend
+    question: 2026年6月每日 GMV 趋势
+    sql: |
+      SELECT pay_date, SUM(pay_amount) AS gmv
+      FROM data.dwd_payment
+      WHERE pay_status = 'success'
+        AND pay_date BETWEEN '2026-06-01' AND '2026-06-30'
+      GROUP BY pay_date
+      ORDER BY pay_date
+    query_spec:
+      metrics: [gmv]
+      dimensions: [date]
+      time_range: {start: "2026-06-01", end: "2026-06-30"}
+      comparison: null
+    tags: [趋势, 日期, 每天, GMV]
+    difficulty: easy
+    source: manual
+    verified: true
+
+  # ---------- 大促窗口（档期来自 dim_promotion，不写死口径） ----------
+  - id: ex_promotion_window_gmv
+    question: 2026年大促和预热期的 GMV 分别是多少
+    sql: |
+      SELECT pr.promotion_name, pr.promotion_type, pr.start_date, pr.end_date,
+             SUM(p.pay_amount) AS gmv
+      FROM data.dwd_payment p
+      JOIN data.dim_promotion pr
+        ON p.pay_date BETWEEN pr.start_date AND pr.end_date
+      WHERE p.pay_status = 'success'
+        AND pr.promotion_type IN ('大促', '预热')
+      GROUP BY pr.promotion_name, pr.promotion_type, pr.start_date, pr.end_date
+      ORDER BY pr.start_date
+    query_spec:
+      metrics: [gmv]
+      dimensions: []
+      time_range: {start: "2025-06-16", end: "2026-06-18"}
+      comparison: null
+    tags: [大促, 预热, 时间窗, 档期, GMV]
+    difficulty: medium
+    source: manual
+    verified: true
+
+  # ---------- 转化率 ----------
+  - id: ex_order_conversion_rate
+    question: 2026年6月下单转化率是多少
+    sql: |
+      WITH e AS (
+        SELECT SUM(exposure_count) AS exposure
+        FROM data.dwd_exposure_daily
+        WHERE stat_date BETWEEN '2026-06-01' AND '2026-06-30'
+      ), o AS (
+        SELECT COUNT(DISTINCT order_id) AS orders
+        FROM data.dwd_order
+        WHERE order_date BETWEEN '2026-06-01' AND '2026-06-30'
+      )
+      SELECT ROUND((100.0 * o.orders / NULLIF(e.exposure, 0))::numeric, 4) AS order_conversion_pct
+      FROM e, o
+    query_spec:
+      metrics: [conversion_rate]
+      dimensions: []
+      time_range: {start: "2026-06-01", end: "2026-06-30"}
+      comparison: null
+    tags: [转化率, 下单转化, 除零]
+    difficulty: medium
+    source: manual
+    verified: true
+
+  - id: ex_pay_conversion_rate
+    question: 2026年6月支付转化率是多少
+    sql: |
+      WITH e AS (
+        SELECT SUM(uv) AS uv
+        FROM data.dwd_exposure_daily
+        WHERE stat_date BETWEEN '2026-06-01' AND '2026-06-30'
+      ), p AS (
+        SELECT COUNT(DISTINCT order_id) AS paid
+        FROM data.dwd_payment
+        WHERE pay_status = 'success'
+          AND pay_date BETWEEN '2026-06-01' AND '2026-06-30'
+      )
+      SELECT ROUND((100.0 * p.paid / NULLIF(e.uv, 0))::numeric, 4) AS pay_conversion_pct
+      FROM e, p
+    query_spec:
+      metrics: [conversion_rate]
+      dimensions: []
+      time_range: {start: "2026-06-01", end: "2026-06-30"}
+      comparison: null
+    tags: [转化率, 支付转化, UV, 除零]
+    difficulty: medium
+    source: manual
+    verified: true
+
+  # ---------- 退货 / 退款（doc_type 以库中数据为准：refund=退货单，return=仅退款单） ----------
+  - id: ex_return_rate_by_count
+    question: 2026年6月退货率是多少（按单数）
+    sql: |
+      WITH o AS (
+        SELECT COUNT(DISTINCT order_id) AS paid
+        FROM data.dwd_payment
+        WHERE pay_status = 'success'
+          AND pay_date BETWEEN '2026-06-01' AND '2026-06-30'
+      ), r AS (
+        SELECT COUNT(DISTINCT refund_id) AS refunds
+        FROM data.dwd_refund
+        WHERE doc_type = 'refund'
+          AND refund_date BETWEEN '2026-06-01' AND '2026-06-30'
+      )
+      SELECT ROUND((100.0 * r.refunds / NULLIF(o.paid, 0))::numeric, 4) AS return_rate_pct
+      FROM o, r
+    query_spec:
+      metrics: [return_rate]
+      dimensions: []
+      time_range: {start: "2026-06-01", end: "2026-06-30"}
+      comparison: null
+    tags: [退货率, 按单数, doc_type, 除零]
+    difficulty: medium
+    source: manual
+    verified: true
+
+  - id: ex_return_rate_by_amount
+    question: 2026年6月退货率是多少（按金额）
+    sql: |
+      WITH p AS (
+        SELECT SUM(pay_amount) AS gmv
+        FROM data.dwd_payment
+        WHERE pay_status = 'success'
+          AND pay_date BETWEEN '2026-06-01' AND '2026-06-30'
+      ), r AS (
+        SELECT SUM(refund_amount) AS amt
+        FROM data.dwd_refund
+        WHERE doc_type = 'refund'
+          AND refund_date BETWEEN '2026-06-01' AND '2026-06-30'
+      )
+      SELECT ROUND((100.0 * r.amt / NULLIF(p.gmv, 0))::numeric, 4) AS return_amount_rate_pct
+      FROM p, r
+    query_spec:
+      metrics: [return_rate]
+      dimensions: []
+      time_range: {start: "2026-06-01", end: "2026-06-30"}
+      comparison: null
+    tags: [退货率, 按金额, doc_type, 除零]
+    difficulty: medium
+    source: manual
+    verified: true
+
+  - id: ex_refund_amount_ratio
+    question: 2026年6月退款金额占 GMV 的比例是多少
+    sql: |
+      WITH p AS (
+        SELECT SUM(pay_amount) AS gmv
+        FROM data.dwd_payment
+        WHERE pay_status = 'success'
+          AND pay_date BETWEEN '2026-06-01' AND '2026-06-30'
+      ), r AS (
+        SELECT SUM(refund_amount) AS amt
+        FROM data.dwd_refund
+        WHERE refund_date BETWEEN '2026-06-01' AND '2026-06-30'
+      )
+      SELECT ROUND((100.0 * r.amt / NULLIF(p.gmv, 0))::numeric, 4) AS refund_amount_ratio_pct
+      FROM p, r
+    query_spec:
+      metrics: [refund_amount_ratio]
+      dimensions: []
+      time_range: {start: "2026-06-01", end: "2026-06-30"}
+      comparison: null
+    tags: [退款金额, 退款占比, 除零]
+    difficulty: medium
+    source: manual
+    verified: true
+
+  # ---------- 新客占比 ----------
+  - id: ex_new_customer_gmv_ratio
+    question: 2026年6月新客 GMV 占比是多少
+    sql: |
+      WITH p AS (
+        SELECT p.pay_amount, c.first_pay_date
+        FROM data.dwd_payment p
+        JOIN data.dim_customer c ON c.customer_id = p.customer_id
+        WHERE p.pay_status = 'success'
+          AND p.pay_date BETWEEN '2026-06-01' AND '2026-06-30'
+      )
+      SELECT ROUND(
+          (100.0 * SUM(pay_amount) FILTER (
+              WHERE first_pay_date BETWEEN '2026-06-01' AND '2026-06-30'
+          ) / NULLIF(SUM(pay_amount), 0))::numeric,
+          4
+      ) AS new_customer_gmv_pct
+      FROM p
+    query_spec:
+      metrics: [new_customer_gmv_ratio]
+      dimensions: [is_new_customer]
+      time_range: {start: "2026-06-01", end: "2026-06-30"}
+      comparison: null
+    tags: [新客, 新老客, 占比, 除零]
+    difficulty: hard
+    source: manual
+    verified: true

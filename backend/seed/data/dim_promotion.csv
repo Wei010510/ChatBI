@@ -1,0 +1,4 @@
+promotion_id,promotion_name,promotion_type,start_date,end_date,discount_type,threshold_amount,discount_amount
+promo_618_2026,2026年618大促,大促,2026-06-16,2026-06-18,满减,300,50
+preheat_2026,2026年618预热,预热,2026-06-01,2026-06-15,满减,200,20
+promo_618_2025,2025年618大促,大促,2025-06-16,2025-06-18,满减,300,50

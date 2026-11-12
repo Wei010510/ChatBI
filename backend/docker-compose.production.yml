@@ -1,0 +1,37 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+      args:
+        PIP_INDEX_URL: "${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}"
+    env_file:
+      - .env.production
+    environment:
+      USE_MOCK_LLM: "false"
+      DATABASE_URL: "${DATABASE_URL:?DATABASE_URL is required}"
+      LLM_BASE_URL: "${LLM_BASE_URL:?LLM_BASE_URL is required}"
+      LLM_API_KEY: "${LLM_API_KEY:?LLM_API_KEY is required}"
+    expose:
+      - "8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 180s
+
+  web:
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "80:80"
+    volumes:
+      - /opt/frontend-only:/usr/share/nginx/html/sites:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy

@@ -1,0 +1,63 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: chatbi-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST_KEY: ${{ secrets.SSH_HOST_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_HOST_KEY" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Rsync source to server
+        run: |
+          rsync -az --delete \
+            --exclude='.git/' \
+            --exclude='backend/.env' \
+            --exclude='backend/.env.production' \
+            --exclude='frontend/node_modules/' \
+            --exclude='frontend/dist/' \
+            --exclude='**/__pycache__/' \
+            --exclude='**/.pytest_cache/' \
+            -e "ssh -i ~/.ssh/id_ed25519 -p ${{ secrets.SSH_PORT || '22' }} -o StrictHostKeyChecking=yes" \
+            ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/chatbi/
+
+      - name: Build and restart containers
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -p ${{ secrets.SSH_PORT || '22' }} -o StrictHostKeyChecking=yes \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} '
+              set -e
+              cd /opt/chatbi/backend
+              docker compose --env-file .env.production -f docker-compose.production.yml up -d --build
+            '
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 40); do
+            if curl -fsS --max-time 10 "http://${{ secrets.SSH_HOST }}/api/health" | grep -q '"status": *"ok"'; then
+              echo "HEALTH_OK"
+              exit 0
+            fi
+            echo "waiting for api... ($i/40)"
+            sleep 15
+          done
+          echo "HEALTH_FAILED"
+          exit 1

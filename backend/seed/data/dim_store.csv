@@ -1,0 +1,13 @@
+store_id,store_name,channel_code,city
+s001,线下门店01,offline,上海
+s002,线下门店02,offline,上海
+s003,线下门店03,offline,上海
+s004,线下门店04,offline,北京
+s005,线下门店05,offline,深圳
+s006,线下门店06,offline,成都
+s007,线下门店07,offline,北京
+s008,线下门店08,offline,北京
+s009,线下门店09,offline,北京
+s010,线下门店10,offline,深圳
+s011,线上mini_app仓,mini_app,
+s012,线上app仓,app,

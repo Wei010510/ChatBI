@@ -1,0 +1,105 @@
+# bootstrap 自动起草，未人工审核，不得直接作为正式增强包使用。
+# 人工确认后，手动整理进正式 YAML（version 变化会让 S2 缓存自然失效）。
+generated_at: '2026-11-10T13:41:32+00:00'
+source: schema
+reviewed: false
+version: tpl-draft
+note: 草稿模板未经实跑验证，reviewed=false；转正前必须逐条执行 SQL 并确认口径。
+templates:
+- id: draft_tpl_dwd_exposure_daily_single_period
+  name: dwd_exposure_daily 单期聚合（草稿）
+  required_slots:
+  - metrics
+  - time_range
+  metric_columns:
+    exposure_count: dwd_exposure_daily.exposure_count
+    uv: dwd_exposure_daily.uv
+    pv: dwd_exposure_daily.pv
+    session_count: dwd_exposure_daily.session_count
+  sql_template: 'SELECT SUM({metric_col}) AS v
+
+    FROM data.dwd_exposure_daily
+
+    WHERE stat_date BETWEEN ''{start_date}'' AND ''{end_date}'''
+  verified: false
+  notes: bootstrap 自动起草：口径、过滤条件与日期列均需人工确认后转正
+- id: draft_tpl_dwd_ad_daily_single_period
+  name: dwd_ad_daily 单期聚合（草稿）
+  required_slots:
+  - metrics
+  - time_range
+  metric_columns:
+    ad_spend: dwd_ad_daily.ad_spend
+    ad_gmv: dwd_ad_daily.ad_gmv
+    ad_order_count: dwd_ad_daily.ad_order_count
+    ad_click: dwd_ad_daily.ad_click
+    ad_impression: dwd_ad_daily.ad_impression
+  sql_template: 'SELECT SUM({metric_col}) AS v
+
+    FROM data.dwd_ad_daily
+
+    WHERE stat_date BETWEEN ''{start_date}'' AND ''{end_date}'''
+  verified: false
+  notes: bootstrap 自动起草：口径、过滤条件与日期列均需人工确认后转正
+- id: draft_tpl_dwd_order_single_period
+  name: dwd_order 单期聚合（草稿）
+  required_slots:
+  - metrics
+  - time_range
+  metric_columns:
+    total_amount: dwd_order.total_amount
+    discount_amount: dwd_order.discount_amount
+  sql_template: 'SELECT SUM({metric_col}) AS v
+
+    FROM data.dwd_order
+
+    WHERE order_date BETWEEN ''{start_date}'' AND ''{end_date}'''
+  verified: false
+  notes: bootstrap 自动起草：口径、过滤条件与日期列均需人工确认后转正
+- id: draft_tpl_dwd_payment_single_period
+  name: dwd_payment 单期聚合（草稿）
+  required_slots:
+  - metrics
+  - time_range
+  metric_columns:
+    pay_amount: dwd_payment.pay_amount
+  sql_template: 'SELECT SUM({metric_col}) AS v
+
+    FROM data.dwd_payment
+
+    WHERE pay_date BETWEEN ''{start_date}'' AND ''{end_date}'''
+  verified: false
+  notes: bootstrap 自动起草：口径、过滤条件与日期列均需人工确认后转正
+- id: draft_tpl_dwd_refund_single_period
+  name: dwd_refund 单期聚合（草稿）
+  required_slots:
+  - metrics
+  - time_range
+  metric_columns:
+    refund_amount: dwd_refund.refund_amount
+    refund_quantity: dwd_refund.refund_quantity
+  sql_template: 'SELECT SUM({metric_col}) AS v
+
+    FROM data.dwd_refund
+
+    WHERE refund_date BETWEEN ''{start_date}'' AND ''{end_date}'''
+  verified: false
+  notes: bootstrap 自动起草：口径、过滤条件与日期列均需人工确认后转正
+- id: draft_tpl_dwd_order_cost_single_period
+  name: dwd_order_cost 单期聚合（草稿）
+  required_slots:
+  - metrics
+  - time_range
+  metric_columns:
+    product_cost: dwd_order_cost.product_cost
+    first_leg_fee: dwd_order_cost.first_leg_fee
+    warehouse_fee: dwd_order_cost.warehouse_fee
+    last_leg_fee: dwd_order_cost.last_leg_fee
+    ad_fee: dwd_order_cost.ad_fee
+  sql_template: 'SELECT SUM({metric_col}) AS v
+
+    FROM data.dwd_order_cost
+
+    WHERE cost_date BETWEEN ''{start_date}'' AND ''{end_date}'''
+  verified: false
+  notes: bootstrap 自动起草：口径、过滤条件与日期列均需人工确认后转正

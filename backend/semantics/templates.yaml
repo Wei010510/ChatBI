@@ -1,0 +1,142 @@
+# 模板库（增强包，服务 S2 快道；SDD §4.5）
+# 字段以 algorithm/nodes/template.py 为准：required_slots / metric_columns / sql_template。
+# 扩展字段（仅供 S2 判定，不改协议）：dimension_columns 限定模板支持的维度；
+# trigger_keywords 限定 TopN / 对比类模板的命中词。
+# 任一条件不满足 → 不命中 → 继续 S3，不许把模板当唯一路径。
+
+version: "tpl-2026.11"
+updated_at: "2026-11-10"
+owner: "运营"
+
+templates:
+  # 1) 单指标单期：GMV 标量
+  - id: tpl_gmv_single_period
+    name: GMV 单期聚合
+    required_slots: [metrics, time_range]
+    metric_columns:
+      GMV: pay_amount
+      gmv: pay_amount
+      成交额: pay_amount
+      销售额: pay_amount
+    sql_template: |
+      SELECT SUM({metric_col}) AS v
+      FROM data.dwd_payment
+      WHERE pay_status = 'success'
+        AND pay_date BETWEEN '{start_date}' AND '{end_date}'
+    verified: true
+    notes: 仅覆盖 GMV 单期标量；有维度、对比或过滤条件时不命中，回落 S3。
+
+  # 2) 分维度 TopN：渠道 GMV 前 N（默认 10，问题中有“前N/topN”时取 N）
+  - id: tpl_gmv_channel_topn
+    name: 渠道 GMV TopN
+    required_slots: [metrics, time_range, dimensions]
+    dimension_columns:
+      channel: channel_code
+    trigger_keywords: [top, 前, 排名, 最高, 最多, 前十, 前五]
+    metric_columns:
+      GMV: pay_amount
+      gmv: pay_amount
+      成交额: pay_amount
+      销售额: pay_amount
+    sql_template: |
+      SELECT channel_code AS channel, SUM({metric_col}) AS v
+      FROM data.dwd_payment
+      WHERE pay_status = 'success'
+        AND pay_date BETWEEN '{start_date}' AND '{end_date}'
+      GROUP BY channel_code
+      ORDER BY v DESC
+      LIMIT {limit}
+    verified: true
+    notes: 仅支持 channel 单维度；TopN 默认 10，问题中“前N/topN”时取 N；多维或分类目时不命中。
+
+  # 3) 单指标分维度：渠道 GMV 全量（无 TopN 词时命中）
+  - id: tpl_gmv_by_channel
+    name: 渠道 GMV 分组
+    required_slots: [metrics, time_range, dimensions]
+    dimension_columns:
+      channel: channel_code
+    metric_columns:
+      GMV: pay_amount
+      gmv: pay_amount
+      成交额: pay_amount
+      销售额: pay_amount
+    sql_template: |
+      SELECT channel_code AS channel, SUM({metric_col}) AS v
+      FROM data.dwd_payment
+      WHERE pay_status = 'success'
+        AND pay_date BETWEEN '{start_date}' AND '{end_date}'
+      GROUP BY channel_code
+      ORDER BY v DESC
+    verified: true
+    notes: 仅支持 channel 单维度；分类目或多维时不命中，回落 S3 生成 JOIN。
+
+  # 4) 同比：本期 vs 去年同期（两期对比）
+  - id: tpl_gmv_yoy
+    name: GMV 同比两期
+    required_slots: [metrics, time_range, comparison]
+    metric_columns:
+      GMV: pay_amount
+      gmv: pay_amount
+      成交额: pay_amount
+      销售额: pay_amount
+    sql_template: |
+      WITH cur AS (
+        SELECT SUM({metric_col}) AS v
+        FROM data.dwd_payment
+        WHERE pay_status = 'success'
+          AND pay_date BETWEEN '{start_date}' AND '{end_date}'
+      ), prev AS (
+        SELECT SUM({metric_col}) AS v
+        FROM data.dwd_payment
+        WHERE pay_status = 'success'
+          AND pay_date BETWEEN '{prev_start_date}' AND '{prev_end_date}'
+      )
+      SELECT '本期' AS period, cur.v AS v FROM cur
+      UNION ALL
+      SELECT '去年同期' AS period, prev.v AS v FROM prev
+    verified: true
+    notes: 仅覆盖 GMV 同比；上一期日期由 S2 按“去年同期、按日对齐”计算，不写死大促日期。
+
+  # 5) 环比：本期 vs 上一等长周期
+  - id: tpl_gmv_wow
+    name: GMV 环比两期
+    required_slots: [metrics, time_range, comparison]
+    metric_columns:
+      GMV: pay_amount
+      gmv: pay_amount
+      成交额: pay_amount
+      销售额: pay_amount
+    sql_template: |
+      WITH cur AS (
+        SELECT SUM({metric_col}) AS v
+        FROM data.dwd_payment
+        WHERE pay_status = 'success'
+          AND pay_date BETWEEN '{start_date}' AND '{end_date}'
+      ), prev AS (
+        SELECT SUM({metric_col}) AS v
+        FROM data.dwd_payment
+        WHERE pay_status = 'success'
+          AND pay_date BETWEEN '{prev_start_date}' AND '{prev_end_date}'
+      )
+      SELECT '本期' AS period, cur.v AS v FROM cur
+      UNION ALL
+      SELECT '上一周期' AS period, prev.v AS v FROM prev
+    verified: true
+    notes: 仅覆盖 GMV 环比；上一期为紧邻本期的等长周期，由 S2 计算。
+
+  # 6) 支付订单数单期：COUNT(DISTINCT order_id)
+  - id: tpl_paid_orders_single_period
+    name: 支付订单数单期聚合
+    required_slots: [metrics, time_range]
+    metric_columns:
+      支付订单数: order_id
+      订单数: order_id
+      单量: order_id
+      支付单量: order_id
+    sql_template: |
+      SELECT COUNT(DISTINCT {metric_col}) AS v
+      FROM data.dwd_payment
+      WHERE pay_status = 'success'
+        AND pay_date BETWEEN '{start_date}' AND '{end_date}'
+    verified: true
+    notes: 仅覆盖支付订单数单期标量；有维度、对比或过滤条件时不命中。

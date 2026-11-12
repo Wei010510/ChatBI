@@ -1,0 +1,42 @@
+# bootstrap 自动起草，未人工审核，不得直接作为正式增强包使用。
+# 人工确认后，手动整理进正式 YAML（version 变化会让 S2 缓存自然失效）。
+generated_at: '2026-11-10T13:41:32+00:00'
+source: schema
+reviewed: false
+version: aliases-draft
+note: dimensions / channels 需人工维护；entities 为 L0 低基数列采样候选。
+dimensions: {}
+channels: {}
+entities:
+  dim_channel.channel_type:
+    column: dim_channel.channel_type
+    values:
+    - offline
+    - online
+    note: bootstrap 从 L0 低基数列采样，待人工确认
+  dim_promotion.promotion_type:
+    column: dim_promotion.promotion_type
+    values:
+    - 大促
+    - 预热
+    note: bootstrap 从 L0 低基数列采样，待人工确认
+  dwd_order.order_status:
+    column: dwd_order.order_status
+    values:
+    - cancelled
+    - created
+    - paid
+    - refunded
+    note: bootstrap 从 L0 低基数列采样，待人工确认
+  dwd_payment.pay_status:
+    column: dwd_payment.pay_status
+    values:
+    - refunded
+    - success
+    note: bootstrap 从 L0 低基数列采样，待人工确认
+  dwd_refund.doc_type:
+    column: dwd_refund.doc_type
+    values:
+    - refund
+    - return
+    note: bootstrap 从 L0 低基数列采样，待人工确认

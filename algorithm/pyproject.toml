@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chatbi-algorithm"
+version = "0.1.0"
+description = "ChatBI algorithm chain (S1~S8, LangGraph)"
+requires-python = ">=3.11"
+dependencies = [
+    "langgraph>=0.2.0",
+    "litellm>=1.40.0",
+    "sqlglot>=23.0.0",
+    "pydantic>=2.6.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[tool.setuptools]
+py-modules = ["config", "exceptions", "graph", "lint", "llm", "protocols", "run", "state"]
+
+[tool.setuptools.packages.find]
+include = ["nodes*", "prompts*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"

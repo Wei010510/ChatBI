@@ -1,0 +1,15 @@
+.git
+.github
+.trae
+docs
+开发记录
+**/node_modules
+**/dist
+**/__pycache__
+**/.pytest_cache
+**/.venv
+**/*.pyc
+**/.env
+**/.env.*
+**/*.log
+**/*.bak

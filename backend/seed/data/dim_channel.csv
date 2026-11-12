@@ -1,0 +1,5 @@
+channel_code,channel_name,channel_type
+app,APP,online
+mini_app,小程序,online
+web,官网,online
+offline,线下门店,offline

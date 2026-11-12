@@ -1,0 +1,34 @@
+# 实体 / 维度别名（增强包，SDD §4.4）
+# 未命中不拒答：S3 只提供候选，S4 决定是否澄清。
+# 取值依据：data.dim_channel / data.dim_customer 实际采样（2026-11-10）。
+
+version: "aliases-2026.11"
+updated_at: "2026-11-10"
+owner: "运营"
+
+# 维度说法 → L1 维度 key（与 metrics.yaml 的 dimensions 对应）
+dimensions:
+  channel: [渠道, 来源, 平台, 端口]
+  category: [类目, 品类, 商品类目]
+  date: [日期, 时间, 每天, 按天]
+  is_new_customer: [新老客, 新客, 老客]
+
+# 渠道口语 → channel_code（dim_channel 实际值：app/mini_app/web/offline）
+channels:
+  app: [APP, app, 应用]
+  mini_app: [小程序, 微信小程序]
+  web: [官网, 网站, PC端]
+  offline: [线下, 门店, 线下门店]
+
+# 地域类实体展开 → dim_customer.city
+# 注意：库里 dim_customer.city 只有城市粒度，没有省份列；
+# 浙江/江苏的非省会城市不在样例数据内，因此按样例数据中可命中的城市展开。
+entities:
+  江浙沪:
+    column: dim_customer.city
+    values: [上海, 杭州, 南京]
+    note: 沪→上海，浙→杭州，苏→南京；仅覆盖样例数据中的城市
+  华东:
+    column: dim_customer.city
+    values: [上海, 杭州, 南京]
+    note: 样例数据中可命中的华东城市；安徽/福建/江西/山东城市不在库中
